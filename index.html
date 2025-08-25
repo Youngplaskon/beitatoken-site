@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>BeitaToken (BTA) – Official Launch</title>
+  <meta name="description" content="BeitaToken (BTA) – secure, community-first crypto project. Join early access, earn rewards, and track our launch countdown."/>
+  <meta property="og:title" content="BeitaToken (BTA) – Launch Countdown"/>
+  <meta property="og:description" content="Join early access for BeitaToken. Earn rewards and stay updated."/>
+  <meta property="og:type" content="website"/>
+  <meta name="theme-color" content="#20c997"/>
+  <style>
+    :root {
+      --bg: #0b1020;
+      --muted: #99a3b3;
+      --text: #e9f1ff;
+      --accent: #29d391;
+      --accent-2: #3aa8ff;
+      --accent-3: #8a5cff;
+      --radius: 18px;
+      --shadow: 0 10px 30px rgba(0,0,0,.25);
+    }
+
+    * { box-sizing: border-box; margin:0; padding:0; }
+    html, body { height:100%; font-family: system-ui, sans-serif; }
+    body {
+      color: var(--text);
+      background:
+        radial-gradient(1200px 600px at 10% -10%, rgba(41,211,145,.25), transparent 60%),
+        radial-gradient(900px 500px at 110% 10%, rgba(58,168,255,.18), transparent 50%),
+        radial-gradient(900px 600px at 50% 120%, rgba(138,92,255,.18), transparent 40%),
+        var(--bg);
+      line-height: 1.6;
+      scroll-behavior: smooth;
+    }
+
+    a { color: var(--accent-2); text-decoration:none; }
+
+    /* Preloader */
+    #preloader {
+      position: fixed; inset: 0;
+      background: var(--bg);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 1000;
+      transition: opacity .8s ease, visibility .8s ease;
+    }
+    #preloader.hide { opacity:0; visibility:hidden; }
+    #preloader img {
+      width:80px; height:80px; border-radius:50%;
+      animation: spin 2s linear infinite, pulse 2s ease-in-out infinite;
+    }
+    @keyframes spin { 
+      from { transform: rotate(0deg); } 
+      to { transform: rotate(360deg); } 
+    }
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 0 10px rgba(41,211,145,.6), 0 0 20px rgba(58,168,255,.4); }
+      50% { box-shadow: 0 0 25px rgba(41,211,145,.9), 0 0 40px rgba(138,92,255,.6); }
+    }
+
+    /* Animations */
+    .fade-up, .fade-left, .fade-right { 
+      opacity:0; 
+      transition: all .8s ease; 
+      will-change: transform, opacity; 
+    }
+    .fade-up { transform:translateY(40px); }
+    .fade-left { transform:translateX(-40px); }
+    .fade-right { transform:translateX(40px); }
+    .show { opacity:1; transform:translateX(0) translateY(0); }
+
+    /* Header */
+    header {
+      position:sticky; top:0; z-index:20;
+      backdrop-filter: blur(8px);
+      background: rgba(11,16,32,.8);
+      border-bottom:1px solid rgba(255,255,255,.08);
+    }
+    .nav { max-width:1100px; margin:0 auto; padding:14px 20px; display:flex; align-items:center; justify-content:space-between; gap:20px; }
+    .brand { display:flex; align-items:center; gap:12px; font-weight:700; font-size:18px; }
+    .brand .logo img { width:40px; height:40px; border-radius:50%; }
+    .links a { margin-left:14px; }
+    .btn { padding:10px 16px; border-radius:999px; font-weight:700; transition:.3s; display:inline-block; }
+    .btn-primary { background:linear-gradient(90deg,var(--accent),var(--accent-2)); color:#041017; border:none; }
+    .btn-primary:hover { opacity:.85; }
+    .btn-outline { border:1px solid rgba(255,255,255,.3); color:var(--text); }
+    .btn-outline:hover { background:rgba(255,255,255,.08); }
+
+    .container { max-width:1100px; margin:0 auto; padding:40px 20px; }
+
+    /* Hero */
+    .hero { display:grid; grid-template-columns:1.1fr 1fr; gap:28px; align-items:center; padding:60px 0; }
+    .pill { display:inline-flex; gap:8px; padding:6px 12px; border-radius:999px; background:linear-gradient(90deg,var(--accent),var(--accent-2)); color:#03131b; font-weight:700; }
+    h1 { font-size:clamp(32px,4vw,52px); line-height:1.1; margin:14px 0 8px; }
+    .lead { color:var(--muted); font-size:clamp(15px,2vw,18px); }
+
+    .card { background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.08); border-radius:var(--radius); padding:18px; box-shadow:var(--shadow); transition:.3s; }
+    .card:hover { transform:translateY(-4px); }
+
+    .countdown { display:flex; gap:10px; margin-top:22px; flex-wrap:wrap; }
+    .timebox { flex:1 1 110px; text-align:center; }
+    .timebox strong { font-size:34px; display:block; }
+    .timebox span { color:var(--muted); font-size:12px; text-transform:uppercase; }
+
+    /* Hero coin image */
+    .coin-logo {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    .coin-logo img {
+      width: min(400px, 85%);
+      border-radius: 50%;
+      animation: spin-slow 12s linear infinite, pulse 3s ease-in-out infinite;
+      box-shadow: 0 0 15px rgba(41,211,145,.6), 0 0 30px rgba(58,168,255,.4);
+    }
+    @keyframes spin-slow {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    /* Sections */
+    section { padding:80px 0; }
+    h2 { font-size:clamp(24px,3.2vw,34px); margin-bottom:8px; }
+    .sub { color:var(--muted); margin-bottom:22px; }
+    .grid { display:grid; gap:20px; grid-template-columns:repeat(3,1fr); }
+    .feature { padding:20px; border-radius:var(--radius); }
+
+    /* Tokenomics */
+    .stats { display:grid; gap:14px; grid-template-columns:repeat(4,1fr); margin-top:18px; }
+    .stat { text-align:center; padding:16px; }
+    .stat strong { display:block; font-size:22px; }
+
+    /* Form */
+    form { display:grid; gap:14px; }
+    label { font-size:14px; display:block; margin-bottom:4px; }
+    input, textarea {
+      width:100%; padding:12px 14px; border-radius:12px; background:#0b1526; border:1px solid rgba(255,255,255,.1); color:var(--text);
+    }
+
+    /* Footer */
+    footer { color:var(--muted); padding:40px 0 60px; text-align:center; }
+
+    /* Responsive */
+    @media(max-width:960px){
+      .hero { grid-template-columns:1fr; text-align:center; }
+      .grid { grid-template-columns:1fr; }
+      .stats { grid-template-columns:1fr 1fr; }
+      .coin-logo img { width:64vw; }
+      .links { display:none; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Preloader -->
+  <div id="preloader">
+    <img src="logo.png" alt="Loading BeitaToken">
+  </div>
+
+  <header>
+    <div class="nav">
+      <div class="brand">
+        <div class="logo"><img src="logo.png" alt="BeitaToken Logo"></div>
+        <span>BeitaToken</span>
+      </div>
+      <nav class="links">
+        <a href="#about">About</a>
+        <a href="#tokenomics">Tokenomics</a>
+        <a href="#earn">Earn</a>
+        <a href="#roadmap">Roadmap</a>
+        <a href="#early" class="btn btn-primary">Join Early Access</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- HERO -->
+    <section class="hero">
+      <div class="fade-left">
+        <span class="pill">🚀 BTA Launch Countdown</span>
+        <h1>BeitaToken is Coming Soon</h1>
+        <p class="lead">A legit, community-first token built for real utility, long-term growth, and fair rewards.</p>
+        <div class="card countdown" role="timer">
+          <div class="timebox"><strong id="d">00</strong><span>Days</span></div>
+          <div class="timebox"><strong id="h">00</strong><span>Hours</span></div>
+          <div class="timebox"><strong id="m">00</strong><span>Minutes</span></div>
+          <div class="timebox"><strong id="s">00</strong><span>Seconds</span></div>
+        </div>
+        <div class="actions" style="margin-top:16px;">
+          <a href="https://x.com/BeitaToken" target="_blank" class="btn btn-primary">Follow on X</a>
+          <a href="https://t.me/BeitaTokenBTA" target="_blank" class="btn btn-outline">Join Telegram</a>
+        </div>
+      </div>
+      <div class="card fade-right">
+        <div class="coin-logo">
+          <img src="img1.png" alt="BeitaToken Coin">
+        </div>
+      </div>
+    </section>
+
+    <!-- ABOUT -->
+    <section id="about" class="fade-up">
+      <h2>What is BeitaToken?</h2>
+      <p class="sub">BeitaToken (BTA) is a next-gen cryptocurrency designed for sustainable growth, transparent tokenomics, and real community utility.</p>
+      <div class="grid">
+        <div class="card feature fade-up">✅ Legit & Transparent<p>Open practices, verified contract, and community-driven decisions.</p></div>
+        <div class="card feature fade-up">🔐 Secure by Design<p>Built on battle-tested standards with a clear upgrade plan.</p></div>
+        <div class="card feature fade-up">🎁 Rewards that Matter<p>Earn via airdrops, staking, and community programs.</p></div>
+      </div>
+    </section>
+
+    <!-- TOKENOMICS -->
+    <section id="tokenomics" class="fade-up">
+      <h2>Tokenomics</h2>
+      <p class="sub">Fair distribution focused on community growth and healthy liquidity.</p>
+      <div class="stats">
+        <div class="card stat fade-up"><span>Token</span><strong>BeitaToken (BTA)</strong></div>
+        <div class="card stat fade-up"><span>Total Supply</span><strong>100,000,000</strong></div>
+        <div class="card stat fade-up"><span>Decimals</span><strong>18</strong></div>
+        <div class="card stat fade-up"><span>Chain</span><strong>TBA</strong></div>
+      </div>
+    </section>
+
+    <!-- EARN -->
+    <section id="earn" class="fade-up">
+      <h2>Ways to Earn BTA</h2>
+      <p class="sub">Join early and start building your position.</p>
+      <div class="grid">
+        <div class="card feature fade-up">🎉 Early Airdrop<p>Sign up before launch to qualify for the first drop.</p></div>
+        <div class="card feature fade-up">🪙 Staking<p>Stake BTA to earn yield from the rewards pool.</p></div>
+        <div class="card feature fade-up">🤝 Community Quests<p>Earn by contributing: content, translations, referrals.</p></div>
+      </div>
+    </section>
+
+    <!-- ROADMAP -->
+    <section id="roadmap" class="fade-up">
+      <h2>Roadmap</h2>
+      <p class="sub">Clear phases to deliver value and utility.</p>
+      <div class="grid">
+        <div class="card feature fade-up"><strong>Phase 1 – Launch</strong><p>Token deploy + verification, liquidity, and first airdrop.</p></div>
+        <div class="card feature fade-up"><strong>Phase 2 – Staking</strong><p>Introduce staking contracts and dashboards.</p></div>
+        <div class="card feature fade-up"><strong>Phase 3 – Listings</strong><p>Target CEX/DEX listings and expand liquidity.</p></div>
+      </div>
+    </section>
+
+    <!-- EARLY ACCESS -->
+    <section id="early" class="fade-up">
+      <h2>Get Early Access</h2>
+      <p class="sub">Reserve your spot for updates and airdrop eligibility.</p>
+      <div class="card fade-up">
+        <form id="signup" novalidate>
+          <div class="grid" style="grid-template-columns:1fr 1fr;">
+            <div><label for="name">Name</label><input id="name" name="name" required /></div>
+            <div><label for="email">Email</label><input id="email" name="email" type="email" required /></div>
+          </div>
+          <div><label for="wallet">Wallet (optional)</label><input id="wallet" name="wallet" /></div>
+          <div><label for="note">Message (optional)</label><textarea id="note" name="note" rows="3"></textarea></div>
+          <div class="actions"><button class="btn btn-primary" type="submit">Reserve My Spot</button></div>
+          <p id="msg" class="sub" role="status"></p>
+        </form>
+      </div>
+    </section>
+
+    <footer>© <span id="year"></span> BeitaToken • Built with ❤ by the community</footer>
+  </main>
+
+  <script>
+    // Preloader
+    window.addEventListener("load", () => {
+      document.getElementById("preloader").classList.add("hide");
+    });
+
+    // Countdown
+    const LAUNCH_AT = new Date("2025-09-30T15:00:00Z");
+    const d=document.getElementById('d'), h=document.getElementById('h'), m=document.getElementById('m'), s=document.getElementById('s');
+    function tick(){
+      const now=new Date(); let diff=Math.max(0, LAUNCH_AT-now);
+      const days=Math.floor(diff/86400000); diff-=days*86400000;
+      const hrs=Math.floor(diff/3600000); diff-=hrs*3600000;
+      const mins=Math.floor(diff/60000); diff-=mins*60000;
+      const secs=Math.floor(diff/1000);
+      d.textContent=String(days).padStart(2,'0');
+      h.textContent=String(hrs).padStart(2,'0');
+      m.textContent=String(mins).padStart(2,'0');
+      s.textContent=String(secs).padStart(2,'0');
+    }
+    tick(); setInterval(tick,1000);
+
+    // Form handling
+    const form=document.getElementById('signup'); const msg=document.getElementById('msg');
+    form.addEventListener('submit',e=>{
+      e.preventDefault();
+      const data=Object.fromEntries(new FormData(form).entries());
+      if(!data.name||!data.email.includes('@')){msg.textContent="Please enter valid name & email."; return;}
+      msg.textContent="✅ Reserved! We'll be in touch.";
+      form.reset();
+    });
+
+    // Scroll animations with stagger
+    const fadeEls=document.querySelectorAll('.fade-up, .fade-left, .fade-right');
+    const obs=new IntersectionObserver(entries=>{
+      entries.forEach(e=>{
+        if(e.isIntersecting){
+          const delay=[...e.target.parentNode.children].indexOf(e.target)*120;
+          e.target.style.transitionDelay=delay+"ms";
+          e.target.classList.add('show');
+        }
+      });
+    },{threshold:.2});
+    fadeEls.forEach(el=>obs.observe(el));
+
+    // Footer year
+    document.getElementById('year').textContent=new Date().getFullYear();
+  </script>
+</body>
+</html>
