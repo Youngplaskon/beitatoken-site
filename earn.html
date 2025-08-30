@@ -1,0 +1,715 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>BTA Mining Pool Dashboard</title>
+
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com"></script>
+
+<style>
+  :root{
+    --bg:#071022; --card:rgba(255,255,255,0.03);
+  }
+  body { background:var(--bg); color:#fff; font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial; }
+  .glass { background: var(--card); border: 1px solid rgba(255,255,255,0.04); backdrop-filter: blur(6px); }
+  .chip { padding:0.25rem 0.6rem; border-radius:999px; font-size:0.75rem; }
+  .field, input.field, select.field { background: rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.04); padding:0.5rem; border-radius:0.6rem; color:white; }
+  input.black-text { color: #000 !important; background: #fff !important; border-color: rgba(0,0,0,0.08) !important; }
+  button.btn { padding:0.45rem 0.9rem; border-radius:0.6rem; font-weight:600; }
+  .modal-back { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background: rgba(0,0,0,0.6); z-index:80; }
+  .addr-box { background:#fff; color:#000; border:1px solid rgba(0,0,0,0.08); padding:0.8rem; border-radius:0.6rem; word-break:break-word; }
+  /* Toasts */
+  .toast { position: fixed; right: 1rem; bottom: 1rem; display:flex; flex-direction:column; gap:0.5rem; z-index:2000; max-width:380px; }
+  .toast-item { padding:0.75rem 1rem; border-radius:0.75rem; font-weight:600; color:#fff; display:flex; gap:0.6rem; align-items:center; box-shadow:0 8px 20px rgba(0,0,0,0.45); cursor:pointer; animation: slideIn .28s ease, fadeOut .28s ease 3.7s forwards; }
+  .toast-success { background: linear-gradient(90deg,#16a34a,#059669); }
+  .toast-error   { background: linear-gradient(90deg,#ef4444,#dc2626); }
+  .toast-info    { background: linear-gradient(90deg,#2563eb,#1d4ed8); }
+  .toast-warning { background: linear-gradient(90deg,#f59e0b,#d97706); }
+  @keyframes slideIn { from{ transform: translateX(100%); opacity:0 } to{ transform: translateX(0); opacity:1 } }
+  @keyframes fadeOut { to{ transform: translateX(100%); opacity:0 } }
+  @media (max-width:900px) { main { grid-template-columns: 1fr !important } .left-grid { grid-template-columns: 1fr !important } }
+</style>
+</head>
+<body class="antialiased">
+
+<!-- Header -->
+<header class="container mx-auto px-4 py-6 flex items-center gap-4">
+  <div class="text-2xl font-bold">BTA Token<span class="text-cyan-300">.</span></div>
+  <div class="flex-1"></div>
+  <div class="flex items-center gap-3">
+    <div id="addrBadge" class="chip bg-white/6 hidden"></div>
+    <button id="connectBtn" class="btn bg-cyan-600/20 hover:bg-cyan-600/30">Connect Wallet</button>
+    <button id="disconnectBtnHeader" class="btn bg-red-600/20 hover:bg-red-600/30 hidden">Disconnect</button>
+  </div>
+</header>
+
+<!-- Main layout -->
+<main class="container mx-auto px-4 grid lg:grid-cols-3 gap-6">
+  <!-- Left: Pool & BTA side-by-side -->
+  <section class="lg:col-span-2 space-y-6">
+    <div class="grid grid-cols-2 gap-6 left-grid">
+      <!-- Mining Pool -->
+      <div class="glass rounded-2xl p-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="text-sm text-white/60">Mining Pool</div>
+            <div class="mt-2 text-lg font-bold">Earning Real Money</div>
+          </div>
+          <div class="chip bg-white/6">Start Earning</div>
+        </div>
+
+        <div class="mt-4 text-sm text-white/60">Pool status: <span id="poolStatus">Disconnected</span></div>
+        <div class="mt-1 text-sm text-white/60">Active miners: <span id="poolMiners">1</span></div>
+
+        <div class="mt-6 flex items-center gap-3">
+          <button id="poolStartBtn" class="btn bg-emerald-500/20 hover:bg-emerald-500/30" disabled>Start Pool Mining</button>
+          <button id="poolStopBtn" class="btn bg-red-500/20 hover:bg-red-500/30" disabled>Stop</button>
+        </div>
+
+        <div class="mt-4 text-sm text-white/60">
+          Mining status: <span id="miningStatus">Disconnected</span><br>
+          Hashrate: <span id="hashrate">0.00</span> H/s
+        </div>
+      </div>
+
+      <!-- BTA Wallet -->
+      <div class="glass rounded-2xl p-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="text-sm text-white/60">BTA Wallet</div>
+            <div id="btaBalance" class="mt-2 text-2xl font-bold">0.0000 BTA</div>
+          </div>
+          <div class="chip bg-white/6">BTA</div>
+        </div>
+
+        <div class="mt-4 text-sm text-white/60">BTA Balance</div>
+        <div id="btzBalance" class="mt-1 text-lg font-medium">0.0000 BTA</div>
+
+        <div class="mt-6 grid grid-cols-2 gap-3">
+          <input id="convertAmt" type="number" min="0" step="1" placeholder="Amount BTA" class="field">
+          <button id="convertBtn" class="btn bg-rose-500/20 hover:bg-rose-500/30">Convert→ USDT</button>
+        </div>
+
+        <div class="mt-3 text-xs text-white/50">Conversion uses rate (1000 BTA = 1 USDT). Start earning with your balances.</div>
+      </div>
+    </div>
+
+    <!-- Activity -->
+    <div class="glass rounded-2xl p-6">
+      <div class="flex items-center justify-between">
+        <h3 class="text-lg font-semibold">Activity</h3>
+        <div class="text-sm text-white/60">Recent operations</div>
+      </div>
+      <div id="activity" class="mt-4 space-y-2 text-sm"></div>
+    </div>
+  </section>
+
+  <!-- Right: USDT Wallet + Pending + Wallet -->
+  <aside class="space-y-6">
+    <div class="glass rounded-2xl p-6">
+      <div class="flex items-center justify-between">
+        <div>
+          <div class="text-sm text-white/60">USDT Wallet</div>
+          <div id="usdtBalance" class="mt-2 text-3xl font-bold">0.00 USDT</div>
+        </div>
+        <div class="chip bg-white/6">USDT</div>
+      </div>
+
+      <div class="mt-4 text-xs text-white/60">Pending: <span id="usdtPending">0.00</span> USDT</div>
+      <div class="mt-1 text-xs text-white/60">Available: <span id="usdtAvailable">0.00</span> USDT</div>
+
+      <div class="mt-6 grid grid-cols-1 gap-2">
+        <button id="openDepositBtn" class="btn bg-cyan-600/20 hover:bg-cyan-600/30">Deposit</button>
+        <button id="openWithdrawBtn" class="btn bg-yellow-500/20 hover:bg-yellow-500/30">Withdraw</button>
+      </div>
+
+      <div class="mt-6 text-xs text-white/50">Balances persist per wallet address in localStorage.</div>
+    </div>
+
+    <div class="glass rounded-2xl p-6">
+      <h4 class="font-semibold">Pending Withdrawals</h4>
+      <div id="pendingList" class="mt-3 space-y-2 text-sm"></div>
+    </div>
+
+    <div class="glass rounded-2xl p-6">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-full bg-white/6 grid place-items-center">💳</div>
+          <div>
+            <div id="walletName" class="font-semibold">Wallet</div>
+            <div id="walletNetwork" class="text-xs text-white/60">Not connected</div>
+          </div>
+        </div>
+
+        <div id="walletStatus" class="chip bg-white/6 text-white/80">Disconnected</div>
+      </div>
+
+      <div class="mt-6 grid gap-2">
+        <button id="copyAddr" class="btn bg-slate-500/20 disabled:opacity-40" disabled>Copy Address</button>
+        <button id="disconnectBtn" class="btn bg-red-600/20 disabled:opacity-40" disabled>Disconnect</button>
+      </div>
+    </div>
+  </aside>
+</main>
+
+<!-- Deposit Modal (dropdown + readable black address text) -->
+<div id="depositModal" class="hidden fixed inset-0 z-50">
+  <div class="modal-back">
+    <div class="bg-[#071324] rounded-xl p-6 w-full max-w-lg glass">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="font-semibold text-lg">Deposit — Choose option</h3>
+        <button id="closeDeposit" class="btn">Close</button>
+      </div>
+
+      <div class="p-3 rounded-lg bg-red-700/8 border border-red-700/10 mb-4">
+        <div class="font-medium text-red-100">WARNING</div>
+        <div class="text-sm mt-1 text-red-100">
+          Send only the specified token to the matching chain. Sending the wrong token or chain may cause permanent loss.
+        </div>
+      </div>
+
+      <div class="space-y-4">
+        <label class="block text-sm text-white/70">Choose deposit option</label>
+        <select id="depositSelect" class="field w-full">
+          <option value="usdt_trc20">USDT Tether TRC20</option>
+          <option value="btc">BTC</option>
+          <option value="eth">Ethereum (ETH)</option>
+          <option value="xrp">XRP</option>
+          <option value="bnb">BNB Smart Chain</option>
+        </select>
+
+        <div id="depositInfo" class="addr-box">
+          <div id="depositLabel" class="font-medium">USDT Tether TRC20</div>
+          <div id="depositAddress" class="mt-2 black-text">TSThbFbqfViVxNSg9cnQ6taqSghH8p6kyc</div>
+          <div class="mt-3 flex gap-2">
+            <button id="copyDeposit" class="btn bg-slate-600/20">Copy Address</button>
+            <button id="showFullWarning" class="btn bg-yellow-500/20">Warning</button>
+          </div>
+        </div>
+
+        <div class="mt-4 text-right">
+          <button id="closeDeposit2" class="btn bg-cyan-600/20">Done</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Withdraw modal -->
+<div id="withdrawModal" class="hidden fixed inset-0 z-50">
+  <div class="modal-back">
+    <div class="bg-[#071324] rounded-xl p-6 w-full max-w-md glass">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="font-semibold text-lg">Withdraw USDT</h3>
+        <button id="closeWithdraw" class="btn">Close</button>
+      </div>
+
+      <div class="space-y-3">
+        <div>
+          <label class="text-sm text-white/70">Destination address</label>
+          <input id="withdrawAddress" class="field mt-1 w-full" placeholder="Destination wallet address (prefill if connected)">
+        </div>
+
+        <div>
+          <label class="text-sm text-white/70">Amount (USDT)</label>
+          <input id="withdrawAmount" type="number" class="field mt-1 w-full" step="0.01" min="0">
+        </div>
+
+        <div class="text-sm text-white/60">Withdrawals are created as <strong>pending</strong>. They will not deduct funds until approved.</div>
+
+        <div class="flex justify-end gap-2">
+          <button id="submitWithdraw" class="btn bg-yellow-500/20">Request Withdraw</button>
+          <button id="closeWithdraw2" class="btn bg-slate-600/20">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Full warning modal (shows all addresses in warning text) -->
+<div id="fullWarningModal" class="hidden fixed inset-0 z-60">
+  <div class="modal-back">
+    <div class="bg-[#071324] rounded-xl p-6 w-full max-w-lg glass">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="font-semibold text-lg">Deposit Warning & Addresses</h3>
+        <button id="closeFullWarning" class="btn">Close</button>
+      </div>
+      <div class="p-4 bg-white rounded text-black text-sm" style="line-height:1.4;">
+        <strong>Wallet 💳 USDT Tether TRC20:</strong> TSThbFbqfViVxNSg9cnQ6taqSghH8p6kyc<br><br>
+        <strong>BTC:</strong> bc1qgwcsk7ejyq3u5747xa9r49lyn3a3dpk7e2xx26<br><br>
+        <strong>Ethereum ETH:</strong> 0x88fd1a2E86C723f522d2e47BB725b4633A12cf20<br><br>
+        <strong>XRP:</strong> rE5apkmMAn1WC5UEoVScT6kATnocbSqEzu<br><br>
+        <strong>BNB Smart Chain:</strong> 0x88fd1a2E86C723f522d2e47BB725b4633A12cf20
+      </div>
+      <div class="mt-4 text-right">
+        <button id="closeFullWarning2" class="btn bg-cyan-600/20">Done</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast container -->
+<div id="toast" class="toast"></div>
+
+<footer class="container mx-auto px-4 py-10 text-center text-white/40 text-xs">
+  BTAToken is the best mining pool to earn real money online.
+</footer>
+
+<script>
+/* ============================================================
+   Full dashboard JS
+   - per-wallet persistent state in localStorage
+   - connect to MetaMask (EIP-1193) and attempt to switch to Mainnet (0x1)
+   - slow mining (8s ticks), mining only after connect, zero on first start
+   - conversion: 1000 BTA => 1 USDT (internal)
+   - deposit dropdown with black text address and full warning modal
+   - withdraw requests become pending (not deducted until approved)
+   - polished toasts (icons, animations, clickable to dismiss)
+   ============================================================ */
+
+const STORAGE_KEY = 'bta_dashboard_final_v1';
+const CONVERSION_RATE = 1/1000; // 1000 BTA => 1 USDT
+const MINING_SEC_RATE = 0.0005; // BTA per second when mining (very slow)
+const MINING_TICK_MS = 8000;    // 8s tick
+
+/* ---- storage helpers ---- */
+function loadState() {
+  try { const raw = localStorage.getItem(STORAGE_KEY); return raw ? JSON.parse(raw) : { selected: null, accounts: {} }; }
+  catch (e) { console.warn('load error', e); return { selected: null, accounts: {} }; }
+}
+function saveState(s) { localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); }
+let state = loadState();
+
+/* ---- small helpers ---- */
+const $ = id => document.getElementById(id);
+function nowMs() { return Date.now(); }
+function randHex(n) { const bytes = new Uint8Array(Math.ceil(n/2)); crypto.getRandomValues(bytes); return Array.from(bytes).map(b=>b.toString(16).padStart(2,'0')).join('').slice(0,n); }
+function fmt(n,d=2){ if(isNaN(n)) n = 0; return Number(n).toLocaleString(undefined,{minimumFractionDigits:d, maximumFractionDigits:d}); }
+function shortAddr(a){ if(!a) return ''; return a.slice(0,6)+'…'+a.slice(-4); }
+function escapeHtml(s){ if(!s) return ''; return s.replace(/[&<>"'`=\/]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','/':'&#x2F;','`':'&#x60;','=':'&#x3D;'})[c]); }
+
+/* ---- toast (polished) ---- */
+function showToast(text, type='info', ttl=4000) {
+  const container = $('toast');
+  const el = document.createElement('div');
+  const icon = type==='success' ? '✅' : type==='error' ? '❌' : type==='warning' ? '⚠️' : 'ℹ️';
+  el.className = 'toast-item toast-' + (type || 'info');
+  el.innerHTML = `<div style="font-size:18px">${icon}</div><div style="flex:1">${escapeHtml(String(text))}</div>`;
+  el.addEventListener('click', () => el.remove());
+  container.appendChild(el);
+  setTimeout(()=> { try { el.remove(); } catch(e){} }, ttl);
+}
+
+/* ---- account helpers ---- */
+function getAccount() {
+  const addr = state.selected;
+  if (!addr) return null;
+  if (!state.accounts[addr]) {
+    state.accounts[addr] = { bta:0, btz:0, usdt:0, pending:[], activity:[], mining:false, hashrate:0, lastMiningTimestamp:null };
+    saveState(state);
+  }
+  return state.accounts[addr];
+}
+function pushActivity(text) {
+  const acc = getAccount();
+  if (!acc) return;
+  acc.activity.unshift({ ts: new Date().toISOString(), text });
+  acc.activity = acc.activity.slice(0,120);
+  saveState(state);
+  renderActivity();
+}
+
+/* ---- wallet connect / disconnect ---- */
+async function connectWallet() {
+  try {
+    if (window.ethereum && window.ethereum.request) {
+      const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+      if (!accounts || !accounts.length) throw new Error('No accounts returned');
+      const addr = accounts[0];
+      state.selected = addr;
+
+      // try to switch to mainnet
+      try {
+        const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+        if (chainId !== '0x1') {
+          try {
+            await window.ethereum.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: '0x1' }] });
+            showToast('Switched to Ethereum Mainnet', 'success');
+          } catch (switchErr) {
+            showToast('Please switch your wallet to Ethereum Mainnet (0x1)', 'warning', 6000);
+          }
+        }
+      } catch(e){ /* ignore */ }
+
+      if (!state.accounts[addr]) {
+        state.accounts[addr] = { bta:0, btz:0, usdt:0, pending:[], activity:[], mining:false, hashrate:0, lastMiningTimestamp:null };
+        pushActivity('👋 New wallet created (balances set to 0)');
+        showToast('New wallet initialized with zero balances', 'success');
+      } else {
+        pushActivity('🔌 Wallet connected: ' + shortAddr(addr));
+        showToast('Connected: ' + shortAddr(addr), 'success');
+      }
+
+      bindProviderEvents();
+      saveState(state);
+      renderAll();
+    } else {
+      // fallback simulated
+      const ok = confirm('No Web3 wallet detected. Continue with a simulated wallet for testing?');
+      if (!ok) return;
+      const sim = '0x' + randHex(40);
+      state.selected = sim;
+      if (!state.accounts[sim]) state.accounts[sim] = { bta:0, btz:0, usdt:0, pending:[], activity:[], mining:false, hashrate:0, lastMiningTimestamp:null };
+      pushActivity('🧪 Simulated wallet created: ' + shortAddr(sim));
+      showToast('Simulated wallet created', 'info');
+      saveState(state);
+      renderAll();
+    }
+  } catch (err) {
+    console.error(err);
+    showToast('Connect failed: ' + (err.message || err), 'error', 6000);
+  }
+}
+
+function bindProviderEvents() {
+  if (!window.ethereum || !window.ethereum.on) return;
+  window.ethereum.on('accountsChanged', accounts => {
+    const newAddr = accounts && accounts[0] ? accounts[0] : null;
+    if (!newAddr) {
+      state.selected = null;
+      saveState(state);
+      showToast('Account disconnected in wallet', 'info');
+      renderAll();
+      return;
+    }
+    state.selected = newAddr;
+    if (!state.accounts[newAddr]) {
+      state.accounts[newAddr] = { bta:0, btz:0, usdt:0, pending:[], activity:[], mining:false, hashrate:0, lastMiningTimestamp:null };
+      pushActivity('👋 New wallet created (balances set to 0)');
+      showToast('New wallet detected: ' + shortAddr(newAddr), 'success');
+    } else {
+      pushActivity('🔁 Account changed to ' + shortAddr(newAddr));
+      showToast('Account changed: ' + shortAddr(newAddr), 'info');
+    }
+    saveState(state);
+    renderAll();
+  });
+  window.ethereum.on('chainChanged', cid => {
+    showToast('Network changed: ' + cid, 'info');
+    renderAll();
+  });
+}
+
+function disconnectWallet() {
+  const acc = getAccount();
+  if (acc && acc.mining) stopMining();
+  state.selected = null;
+  saveState(state);
+  showToast('Disconnected locally', 'info');
+  renderAll();
+}
+
+/* ---- mining logic ---- */
+let miningTimer = null;
+function startMining() {
+  const acc = getAccount();
+  if (!acc) { showToast('Connect wallet before mining', 'error'); return; }
+  if (acc.mining) { showToast('Mining already active', 'info'); return; }
+  acc.mining = true;
+  if (!acc.lastMiningTimestamp) acc.hashrate = 0; // zero on first start
+  acc.lastMiningTimestamp = nowMs();
+  saveState(state);
+  pushActivity('⛏️ Mining started');
+  showToast('Mining started (slow)', 'success');
+  if (!miningTimer) miningTimer = setInterval(miningTick, MINING_TICK_MS);
+  renderAll();
+}
+function stopMining() {
+  const acc = getAccount();
+  if (!acc || !acc.mining) return;
+  acc.mining = false;
+  acc.hashrate = 0;
+  acc.lastMiningTimestamp = null;
+  saveState(state);
+  clearInterval(miningTimer);
+  miningTimer = null;
+  pushActivity('🛑 Mining stopped');
+  showToast('Mining stopped', 'info');
+  renderAll();
+}
+function miningTick() {
+  const acc = getAccount();
+  if (!acc || !acc.mining) return;
+  const last = acc.lastMiningTimestamp || nowMs();
+  const now = nowMs();
+  const elapsedSec = Math.max(0, (now - last) / 1000);
+  const mined = elapsedSec * MINING_SEC_RATE;
+  const variance = (Math.random() - 0.5) * 0.3;
+  const final = Math.max(0, mined * (1 + variance));
+  acc.bta = Number(acc.bta) + final;
+  acc.hashrate = 6 + Math.random() * 6;
+  acc.lastMiningTimestamp = now;
+  saveState(state);
+  renderAll();
+}
+function resumeMiningIfNeeded() {
+  const acc = getAccount();
+  if (!acc) return;
+  if (acc.mining && acc.lastMiningTimestamp) {
+    const last = acc.lastMiningTimestamp;
+    const now = nowMs();
+    const elapsedSec = Math.max(0, (now - last) / 1000);
+    if (elapsedSec > 1) {
+      const mined = elapsedSec * MINING_SEC_RATE;
+      acc.bta = Number(acc.bta) + mined;
+      acc.hashrate = 6 + Math.random() * 6;
+      acc.lastMiningTimestamp = now;
+      saveState(state);
+      pushActivity('⛏️ Resumed mining — credited ' + fmt(mined,4) + ' BTA for offline time');
+    }
+    if (!miningTimer) miningTimer = setInterval(miningTick, MINING_TICK_MS);
+  }
+}
+
+/* ---- conversion BTA -> USDT ---- */
+function convertBtaToUsdt() {
+  const acc = getAccount();
+  if (!acc) { showToast('Connect wallet first', 'error'); return; }
+  const amt = Number($('convertAmt').value || 0);
+  if (!amt || amt <= 0) { showToast('Enter valid BTA amount', 'error'); return; }
+  if (amt > acc.bta + 1e-12) { showToast('Insufficient BTA', 'error'); return; }
+  const out = amt * CONVERSION_RATE;
+  acc.bta = Number(acc.bta) - amt;
+  acc.usdt = Number(acc.usdt) + out;
+  saveState(state);
+  pushActivity('🔄 Converted ' + fmt(amt,4) + ' BTA → ' + fmt(out,6) + ' USDT');
+  $('convertAmt').value = '';
+  showToast('Conversion complete', 'success');
+  renderAll();
+}
+
+/* ---- deposit UI ---- */
+const depositMap = {
+  usdt_trc20: { label:'USDT Tether TRC20', address:'TSThbFbqfViVxNSg9cnQ6taqSghH8p6kyc' },
+  btc: { label:'BTC', address:'bc1qgwcsk7ejyq3u5747xa9r49lyn3a3dpk7e2xx26' },
+  eth: { label:'Ethereum ETH', address:'0x88fd1a2E86C723f522d2e47BB725b4633A12cf20' },
+  xrp: { label:'XRP', address:'rE5apkmMAn1WC5UEoVScT6kATnocbSqEzu' },
+  bnb: { label:'BNB Smart Chain', address:'0x88fd1a2E86C723f522d2e47BB725b4633A12cf20' }
+};
+function openDepositModal() { $('depositModal').classList.remove('hidden'); updateDepositBox(); }
+function closeDepositModal() { $('depositModal').classList.add('hidden'); }
+function updateDepositBox() {
+  const sel = $('depositSelect').value;
+  const key = sel || 'usdt_trc20';
+  const info = depositMap[key];
+  $('depositLabel').textContent = info.label;
+  $('depositAddress').textContent = info.address;
+  // ensure deposit address has black text style
+  $('depositAddress').classList.add('black-text');
+}
+function copyDepositAddress() { const a = $('depositAddress').textContent; navigator.clipboard.writeText(a).then(()=> showToast('Deposit address copied','success')).catch(()=> showToast('Copy failed','error')); }
+function showFullWarning() { $('fullWarningModal').classList.remove('hidden'); }
+
+/* ---- withdraw: create pending request ---- */
+function openWithdrawModal() {
+  const acc = getAccount();
+  if (!acc) { showToast('Connect wallet first', 'error'); return; }
+  $('withdrawAddress').value = state.selected || '';
+  $('withdrawAmount').value = '';
+  $('withdrawModal').classList.remove('hidden');
+}
+function closeWithdrawModal() { $('withdrawModal').classList.add('hidden'); }
+
+function submitWithdraw() {
+  const acc = getAccount();
+  if (!acc) { showToast('Connect wallet first', 'error'); return; }
+  const dest = String($('withdrawAddress').value || '').trim();
+  const amt = Number($('withdrawAmount').value || 0);
+  if (!dest) { showToast('Enter destination address', 'error'); return; }
+  if (!amt || amt <= 0) { showToast('Enter valid amount', 'error'); return; }
+  const locked = acc.pending.filter(p => p.status === 'pending').reduce((s,p) => s + Number(p.amount), 0);
+  const available = Number(acc.usdt) - locked;
+  if (amt > available + 1e-12) { showToast('Amount exceeds available USDT (after pending holds)', 'error'); return; }
+  const id = randHex(10);
+  const req = { id, amount: Number(amt), dest, ts: new Date().toISOString(), status: 'pending' };
+  acc.pending.unshift(req);
+  saveState(state);
+  pushActivity('🏧 Withdrawal requested ' + fmt(amt,2) + ' USDT → ' + shortAddr(dest));
+  showToast('Withdrawal requested — now pending', 'info');
+  closeWithdrawModal();
+  renderAll();
+}
+
+/* ---- pending cancel / approve (simulate) ---- */
+function cancelPending(id) {
+  const acc = getAccount();
+  if (!acc) return;
+  const idx = acc.pending.findIndex(p => p.id === id && p.status === 'pending');
+  if (idx === -1) { showToast('Pending not found', 'error'); return; }
+  acc.pending.splice(idx,1);
+  saveState(state);
+  pushActivity('🗑️ Cancelled pending withdrawal');
+  showToast('Pending cancelled', 'info');
+  renderAll();
+}
+function approvePending(id) {
+  const acc = getAccount();
+  if (!acc) return;
+  const p = acc.pending.find(x => x.id === id && x.status === 'pending');
+  if (!p) { showToast('Pending not found', 'error'); return; }
+  if (Number(p.amount) > acc.usdt + 1e-12) { showToast('Insufficient USDT to approve', 'error'); return; }
+  p.status = 'approved';
+  acc.usdt = Number(acc.usdt) - Number(p.amount);
+  saveState(state);
+  pushActivity('✅ Withdrawal approved ' + fmt(p.amount,2) + ' USDT → ' + shortAddr(p.dest));
+  showToast('Withdrawal approved (simulated)', 'success');
+  renderAll();
+}
+
+/* ---- rendering ---- */
+function renderBalances() {
+  const acc = getAccount();
+  if (!acc) {
+    $('btaBalance').textContent = '0.0000 BTA';
+    $('btzBalance').textContent = '0.0000 BTZ';
+    $('usdtBalance').textContent = '0.00 USDT';
+    $('usdtPending').textContent = '0.00';
+    $('usdtAvailable').textContent = '0.00';
+    $('hashrate').textContent = '0.00';
+    return;
+  }
+  $('btaBalance').textContent = fmt(acc.bta,4) + ' BTA';
+  $('btzBalance').textContent = fmt(acc.btz,4) + ' BTZ';
+  $('usdtBalance').textContent = fmt(acc.usdt,2) + ' USDT';
+  const pendingTotal = acc.pending.filter(p => p.status === 'pending').reduce((s,p) => s + Number(p.amount), 0);
+  $('usdtPending').textContent = fmt(pendingTotal,2);
+  const available = Math.max(0, Number(acc.usdt) - pendingTotal);
+  $('usdtAvailable').textContent = fmt(available,2);
+  $('hashrate').textContent = fmt(acc.hashrate,2);
+}
+
+function renderActivity() {
+  const acc = getAccount();
+  const box = $('activity');
+  if (!acc || !acc.activity || !acc.activity.length) { box.innerHTML = '<div class="text-white/40">No activity yet.</div>'; return; }
+  box.innerHTML = acc.activity.map(a => {
+    return `<div class="flex items-center justify-between bg-white/4 rounded-xl px-3 py-2">
+      <div>${escapeHtml(a.text)}</div>
+      <div class="text-xs text-white/40">${new Date(a.ts).toLocaleString()}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderPendingList() {
+  const acc = getAccount();
+  const box = $('pendingList');
+  if (!acc || !acc.pending || !acc.pending.length) { box.innerHTML = '<div class="text-white/40">No pending withdrawals.</div>'; return; }
+  box.innerHTML = acc.pending.map(p => {
+    const date = new Date(p.ts).toLocaleString();
+    const statusClass = p.status === 'pending' ? 'bg-yellow-500/20 text-yellow-300' : 'bg-emerald-500/20 text-emerald-300';
+    const actions = p.status === 'pending' ? `<button class="chip bg-white/6 px-2 py-1 mr-2" onclick="cancelPending('${p.id}')">Cancel</button>
+      <button class="chip bg-white/6 px-2 py-1" onclick="approvePending('${p.id}')">Simulate Approve</button>` : '';
+    return `<div class="flex items-center justify-between bg-white/4 rounded-xl px-3 py-2">
+      <div>
+        <div class="font-medium">${fmt(p.amount,2)} USDT</div>
+        <div class="text-xs text-white/50">${date} → ${escapeHtml(p.dest)}</div>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="chip ${statusClass}">${p.status}</span>
+        ${actions}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderWalletCard() {
+  const addr = state.selected;
+  const isConn = !!addr;
+  $('walletStatus').textContent = isConn ? 'Connected' : 'Disconnected';
+  $('walletStatus').className = 'chip ' + (isConn ? 'bg-emerald-500/20 text-emerald-300' : 'bg-white/6 text-white/80');
+  $('walletNetwork').textContent = isConn ? 'Network: Mainnet (Ethereum)' : 'Not connected';
+  $('walletName').textContent = isConn ? shortAddr(addr) : 'Wallet';
+  $('addrBadge').textContent = isConn ? shortAddr(addr) : '';
+  $('addrBadge').classList.toggle('hidden', !isConn);
+
+  $('copyAddr').disabled = !isConn;
+  $('disconnectBtn').disabled = !isConn;
+  $('disconnectBtnHeader').classList.toggle('hidden', !isConn);
+
+  const acc = getAccount();
+  $('poolStartBtn').disabled = !isConn || (acc && acc.mining);
+  $('poolStopBtn').disabled = !isConn || !(acc && acc.mining);
+  $('poolStatus').textContent = isConn ? (acc && acc.mining ? 'Mining…' : 'Idle') : 'Disconnected';
+}
+
+function updateDepositBox() {
+  const sel = $('depositSelect').value || 'usdt_trc20';
+  const info = depositMap[sel];
+  $('depositLabel').textContent = info.label;
+  $('depositAddress').textContent = info.address;
+  $('depositAddress').classList.add('black-text');
+}
+
+function renderAll() {
+  renderBalances();
+  renderActivity();
+  renderPendingList();
+  renderWalletCard();
+  updateDepositBox();
+}
+
+/* Expose for inline handlers */
+window.cancelPending = cancelPending;
+window.approvePending = approvePending;
+
+/* ---- Event bindings ---- */
+window.addEventListener('load', () => {
+  // connect/disconnect
+  $('connectBtn').addEventListener('click', connectWallet);
+  $('disconnectBtn').addEventListener('click', disconnectWallet);
+  $('disconnectBtnHeader').addEventListener('click', disconnectWallet);
+  $('copyAddr').addEventListener('click', () => {
+    if (!state.selected) { showToast('No connected address', 'error'); return; }
+    navigator.clipboard.writeText(state.selected).then(()=> showToast('Address copied', 'success')).catch(()=> showToast('Copy failed', 'error'));
+  });
+
+  // pool controls
+  $('poolStartBtn').addEventListener('click', () => { if (!state.selected) { showToast('Connect wallet before mining', 'error'); return; } startMining(); });
+  $('poolStopBtn').addEventListener('click', stopMining);
+
+  // convert
+  $('convertBtn').addEventListener('click', convertBtaToUsdt);
+
+  // deposit modal
+  $('openDepositBtn').addEventListener('click', openDepositModal);
+  $('closeDeposit').addEventListener('click', closeDepositModal);
+  $('closeDeposit2').addEventListener('click', closeDepositModal);
+  $('depositSelect').addEventListener('change', updateDepositBox);
+  $('copyDeposit').addEventListener('click', copyDepositAddress);
+  $('showFullWarning').addEventListener('click', showFullWarning);
+
+  // full warning modal
+  $('closeFullWarning').addEventListener('click', ()=> $('fullWarningModal').classList.add('hidden'));
+  $('closeFullWarning2').addEventListener('click', ()=> $('fullWarningModal').classList.add('hidden'));
+
+  // withdraw modal
+  $('openWithdrawBtn').addEventListener('click', openWithdrawModal);
+  $('closeWithdraw').addEventListener('click', closeWithdrawModal);
+  $('closeWithdraw2').addEventListener('click', closeWithdrawModal);
+  $('submitWithdraw').addEventListener('click', submitWithdraw);
+
+  // resume previous mining if needed
+  if (state.selected && state.accounts[state.selected] && state.accounts[state.selected].mining) resumeMiningIfNeeded();
+
+  renderAll();
+});
+
+/* Try to resume mining for the current account on page load */
+if (state.selected && state.accounts[state.selected] && state.accounts[state.selected].mining) {
+  resumeMiningIfNeeded();
+}
+</script>
+</body>
+</html>
