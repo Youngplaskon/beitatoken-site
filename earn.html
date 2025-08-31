@@ -270,9 +270,38 @@
    ============================================================ */
 
 const STORAGE_KEY = 'bta_dashboard_final_v1';
+const ADMIN_KEY = 'bta_admin_v1';
 const CONVERSION_RATE = 1/1000; // 1000 BTA => 1 USDT
 const MINING_SEC_RATE = 0.0005; // BTA per second when mining (very slow)
 const MINING_TICK_MS = 8000;    // 8s tick
+
+/* mining rate comes from broadcast multiplier (default 1.0) */
+function getMiningRate(){
+  const b = getBroadcast();
+  const mult = b && typeof b.multiplier === 'number' ? Math.max(0, b.multiplier) : 1;
+  return MINING_SEC_RATE * mult;
+}
+
+
+
+/* ---- admin helpers (shared backend via localStorage) ---- */
+function loadAdmin(){ try{ return JSON.parse(localStorage.getItem(ADMIN_KEY)) || { requests:[], broadcast:null, version:1 }; } catch(e){ return { requests:[], broadcast:null, version:1 }; } }
+function saveAdmin(a){ localStorage.setItem(ADMIN_KEY, JSON.stringify(a)); }
+/* Add a request to admin store if not exists */
+function adminAddRequest(req){
+  const admin = loadAdmin();
+  if(!admin.requests.find(r=>r.id===req.id)){
+    admin.requests.unshift(req);
+    saveAdmin(admin);
+  }
+}
+/* Get requests for current address */
+function adminGetMyRequests(addr){
+  const admin = loadAdmin();
+  return admin.requests.filter(r=>r.address===addr);
+}
+/* Get current broadcast */
+function getBroadcast(){ const a = loadAdmin(); return a.broadcast || null; }
 
 /* ---- storage helpers ---- */
 function loadState() {
@@ -300,6 +329,15 @@ function showToast(text, type='info', ttl=4000) {
   el.addEventListener('click', () => el.remove());
   container.appendChild(el);
   setTimeout(()=> { try { el.remove(); } catch(e){} }, ttl);
+}
+
+
+/* ---- broadcast effects ---- */
+function applyBroadcastEffects(showMsg=true){
+  const b = getBroadcast();
+  if(b){
+    if(showMsg && b.message){ showToast('📢 ' + b.message + ' (multiplier: '+ (b.multiplier ?? 1) + 'x)','info',7000); }
+  }
 }
 
 /* ---- account helpers ---- */
@@ -445,7 +483,7 @@ function miningTick() {
   const last = acc.lastMiningTimestamp || nowMs();
   const now = nowMs();
   const elapsedSec = Math.max(0, (now - last) / 1000);
-  const mined = elapsedSec * MINING_SEC_RATE;
+  const mined = elapsedSec * getMiningRate();
   const variance = (Math.random() - 0.5) * 0.3;
   const final = Math.max(0, mined * (1 + variance));
   acc.bta = Number(acc.bta) + final;
@@ -462,7 +500,7 @@ function resumeMiningIfNeeded() {
     const now = nowMs();
     const elapsedSec = Math.max(0, (now - last) / 1000);
     if (elapsedSec > 1) {
-      const mined = elapsedSec * MINING_SEC_RATE;
+      const mined = elapsedSec * getMiningRate();
       acc.bta = Number(acc.bta) + mined;
       acc.hashrate = 6 + Math.random() * 6;
       acc.lastMiningTimestamp = now;
@@ -532,9 +570,13 @@ function submitWithdraw() {
   const locked = acc.pending.filter(p => p.status === 'pending').reduce((s,p) => s + Number(p.amount), 0);
   const available = Number(acc.usdt) - locked;
   if (amt > available + 1e-12) { showToast('Amount exceeds available USDT (after pending holds)', 'error'); return; }
+  
   const id = randHex(10);
   const req = { id, amount: Number(amt), dest, ts: new Date().toISOString(), status: 'pending' };
   acc.pending.unshift(req);
+  // also add to admin backend
+  adminAddRequest({ id, type:'withdraw', address: state.selected, amount: Number(amt), dest, ts: req.ts, status:'pending', applied:false });
+
   saveState(state);
   pushActivity('🏧 Withdrawal requested ' + fmt(amt,2) + ' USDT → ' + shortAddr(dest));
   showToast('Withdrawal requested — now pending', 'info');
@@ -544,10 +586,22 @@ function submitWithdraw() {
 
 /* ---- pending cancel / approve (simulate) ---- */
 function cancelPending(id) {
+
   const acc = getAccount();
   if (!acc) return;
+  // update local legacy array
   const idx = acc.pending.findIndex(p => p.id === id && p.status === 'pending');
-  if (idx === -1) { showToast('Pending not found', 'error'); return; }
+  if (idx !== -1) { acc.pending.splice(idx,1); }
+  saveState(state);
+  // update admin store
+  const admin = loadAdmin();
+  const r = admin.requests.find(x=>x.id===id && x.address===state.selected);
+  if(r && r.status==='pending'){ r.status='rejected'; }
+  saveAdmin(admin);
+  pushActivity('🗑️ Cancelled pending withdrawal');
+  showToast('Pending cancelled', 'info');
+  renderAll();
+}
   acc.pending.splice(idx,1);
   saveState(state);
   pushActivity('🗑️ Cancelled pending withdrawal');
@@ -555,10 +609,9 @@ function cancelPending(id) {
   renderAll();
 }
 function approvePending(id) {
-  const acc = getAccount();
-  if (!acc) return;
-  const p = acc.pending.find(x => x.id === id && x.status === 'pending');
-  if (!p) { showToast('Pending not found', 'error'); return; }
+
+  showToast('Awaiting admin approval. You cannot approve your own request.', 'info');
+}
   if (Number(p.amount) > acc.usdt + 1e-12) { showToast('Insufficient USDT to approve', 'error'); return; }
   p.status = 'approved';
   acc.usdt = Number(acc.usdt) - Number(p.amount);
@@ -583,10 +636,13 @@ function renderBalances() {
   $('btaBalance').textContent = fmt(acc.bta,4) + ' BTA';
   $('btzBalance').textContent = fmt(acc.btz,4) + ' BTZ';
   $('usdtBalance').textContent = fmt(acc.usdt,2) + ' USDT';
-  const pendingTotal = acc.pending.filter(p => p.status === 'pending').reduce((s,p) => s + Number(p.amount), 0);
-  $('usdtPending').textContent = fmt(pendingTotal,2);
-  const available = Math.max(0, Number(acc.usdt) - pendingTotal);
+  
+  const myReqs = adminGetMyRequests(state.selected||'');
+  const locked = myReqs.filter(r => r.status==='pending' || r.status==='hold').reduce((s,r)=> s + Number(r.amount||0), 0);
+  $('usdtPending').textContent = fmt(locked,2);
+  const available = Math.max(0, Number(acc.usdt) - locked);
   $('usdtAvailable').textContent = fmt(available,2);
+
   $('hashrate').textContent = fmt(acc.hashrate,2);
 }
 
@@ -602,10 +658,33 @@ function renderActivity() {
   }).join('');
 }
 
-function renderPendingList() {
+function renderPendingList(){
   const acc = getAccount();
   const box = $('pendingList');
-  if (!acc || !acc.pending || !acc.pending.length) { box.innerHTML = '<div class="text-white/40">No pending withdrawals.</div>'; return; }
+  
+  const myReqs = adminGetMyRequests(state.selected||'').sort((a,b)=> new Date(b.ts)-new Date(a.ts));
+  if (!myReqs.length) { box.innerHTML = '<div class="text-white/40">No requests.</div>'; return; }
+  box.innerHTML = myReqs.map(p => {
+    const date = new Date(p.ts).toLocaleString();
+    const statusClass = p.status === 'pending' ? 'bg-yellow-500/20 text-yellow-300' 
+                      : p.status === 'approved' ? 'bg-emerald-500/20 text-emerald-300'
+                      : p.status === 'hold' ? 'bg-blue-500/20 text-blue-300'
+                      : 'bg-red-500/20 text-red-300';
+    const canCancel = p.status === 'pending';
+    const actions = canCancel ? `<button class="chip bg-white/6 px-2 py-1 mr-2" onclick="cancelPending('${p.id}')">Cancel</button>` : '';
+    return `<div class="flex items-center justify-between bg-white/4 rounded-xl px-3 py-2">
+      <div>
+        <div class="font-medium">\${fmt(p.amount,2)} USDT</div>
+        <div class="text-xs text-white/50">\${date} → \${escapeHtml(p.dest||'')}</div>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="chip \${statusClass}">\${p.status}</span>
+        \${actions}
+      </div>
+    </div>`;
+  }).join('');
+
+}
   box.innerHTML = acc.pending.map(p => {
     const date = new Date(p.ts).toLocaleString();
     const statusClass = p.status === 'pending' ? 'bg-yellow-500/20 text-yellow-300' : 'bg-emerald-500/20 text-emerald-300';
@@ -700,10 +779,24 @@ window.addEventListener('load', () => {
   $('closeWithdraw2').addEventListener('click', closeWithdrawModal);
   $('submitWithdraw').addEventListener('click', submitWithdraw);
 
+
   // resume previous mining if needed
   if (state.selected && state.accounts[state.selected] && state.accounts[state.selected].mining) resumeMiningIfNeeded();
 
+  // apply broadcast banner & effects
+  applyBroadcastEffects(true);
+
   renderAll();
+
+  // listen for cross-tab admin updates
+  window.addEventListener('storage', (e)=>{
+    if(e.key===ADMIN_KEY){
+      // If multiplier changed, inform user
+      applyBroadcastEffects(false);
+      renderAll();
+    }
+  });
+
 });
 
 /* Try to resume mining for the current account on page load */
