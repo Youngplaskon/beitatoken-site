@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>BTA Admin – Earnings & Requests</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{ --bg:#0b1020; --card:rgba(255,255,255,.06); --muted:#99a3b3; --text:#e9f1ff; --acc:#29d391; --acc2:#3aa8ff; --radius:16px; }
+  *{ box-sizing:border-box }
+  body{ margin:0; font-family:Inter,system-ui,Segoe UI,Roboto,Arial; background:var(--bg); color:var(--text); }
+  header{ position:sticky; top:0; padding:14px 20px; backdrop-filter: blur(8px); background: rgba(11,16,32,.8); border-bottom:1px solid rgba(255,255,255,.08); z-index:10;}
+  .wrap{ max-width:1100px; margin:0 auto; padding:22px; }
+  h1{ font-size:22px; margin:0 }
+  .grid{ display:grid; grid-template-columns: 1.1fr .9fr; gap:16px; }
+  .card{ background:var(--card); border:1px solid rgba(255,255,255,.08); border-radius:var(--radius); padding:16px; }
+  .row{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .btn{ padding:8px 12px; border-radius:10px; border:1px solid rgba(255,255,255,.18); background:transparent; color:var(--text); cursor:pointer; }
+  .btn.primary{ background:linear-gradient(90deg,var(--acc),var(--acc2)); border:none; color:#041017; font-weight:700; }
+  .btn.danger{ border-color: rgba(239,68,68,.6); color:#fecaca; }
+  .field{ padding:10px 12px; border-radius:10px; background:#0b1526; border:1px solid rgba(255,255,255,.12); color:var(--text); }
+  table{ width:100%; border-collapse:collapse; font-size:14px; }
+  th,td{ padding:10px; border-bottom:1px solid rgba(255,255,255,.08); text-align:left; vertical-align:middle; }
+  .pill{ display:inline-block; padding:4px 8px; border-radius:999px; font-size:12px; }
+  .pending{ background:rgba(245,158,11,.16); color:#fbbf24; }
+  .approved{ background:rgba(16,185,129,.18); color:#6ee7b7; }
+  .rejected{ background:rgba(239,68,68,.18); color:#fecaca; }
+  .hold{ background:rgba(59,130,246,.18); color:#93c5fd; }
+  .muted{ color:var(--muted) }
+  footer{ color:var(--muted); text-align:center; padding:24px 0 40px; }
+  @media(max-width:960px){ .grid{ grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<header><div class="wrap"><h1>🛠️ BTA Admin</h1><div class="muted">Manage earnings, requests, and broadcast rewards to users.</div></div></header>
+<main class="wrap grid">
+  <section class="card">
+    <div class="row" style="justify-content:space-between;margin-bottom:8px;">
+      <strong>Transactions & Requests</strong>
+      <div class="row">
+        <select id="filter" class="field">
+          <option value="all">All statuses</option>
+          <option value="pending">Pending</option>
+          <option value="hold">Hold</option>
+          <option value="approved">Approved</option>
+          <option value="rejected">Rejected</option>
+        </select>
+        <button class="btn" id="refresh">Refresh</button>
+      </div>
+    </div>
+    <div style="overflow:auto; max-height:65vh;">
+      <table id="tbl">
+        <thead>
+          <tr>
+            <th>ID</th><th>Type</th><th>Wallet</th><th>Amount</th><th>To</th><th>Status</th><th>When</th><th>Actions</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <aside class="card">
+    <strong>Global Alerts & Rewards</strong>
+    <p class="muted">Set a banner message and a reward multiplier that affects mining rewards on user dashboards.</p>
+    <label>Alert message</label>
+    <input id="alert" class="field" placeholder="e.g., Rewards boosted this weekend! 🔥"/>
+    <div class="row" style="margin-top:8px;">
+      <label for="mult">Reward multiplier</label>
+      <input id="mult" class="field" type="number" step="0.1" min="0" value="1" style="width:120px"/>
+      <span class="muted">1.0 = normal</span>
+    </div>
+    <div class="row" style="margin-top:12px;">
+      <button class="btn primary" id="publish">Publish</button>
+      <button class="btn danger" id="clear">Clear</button>
+    </div>
+    <hr style="border:none;border-top:1px solid rgba(255,255,255,.08); margin:14px 0;">
+    <div class="muted" id="last"></div>
+  </aside>
+</main>
+<footer>Admin changes are instantly saved to this browser's localStorage and picked up live by user pages.</footer>
+
+<script>
+/* Shared keys */
+const STORAGE_KEY = 'bta_dashboard_final_v1'; // user accounts live here
+const ADMIN_KEY   = 'bta_admin_v1';           // admin data: requests + broadcast
+
+function loadAdmin(){
+  try{ return JSON.parse(localStorage.getItem(ADMIN_KEY)) || { requests:[], broadcast:null, version:1 }; }
+  catch(e){ return { requests:[], broadcast:null, version:1 }; }
+}
+function saveAdmin(a){ localStorage.setItem(ADMIN_KEY, JSON.stringify(a)); }
+function loadUserState(){
+  try{ return JSON.parse(localStorage.getItem(STORAGE_KEY)) || { selected:null, accounts:{} }; }
+  catch(e){ return { selected:null, accounts:{} }; }
+}
+function saveUserState(s){ localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); }
+
+/* Migrate any legacy pending requests stored under accounts[*].pending into admin.requests */
+function migrateLegacy(){
+  const admin = loadAdmin();
+  const state = loadUserState();
+  const known = new Set(admin.requests.map(r=>r.id));
+  let added = 0;
+  Object.entries(state.accounts||{}).forEach(([addr,acc])=>{
+    (acc.pending||[]).forEach(p=>{
+      if(!known.has(p.id)){
+        admin.requests.push({
+          id:p.id, type:'withdraw', address:addr, amount:Number(p.amount)||0, dest:p.dest||'', ts:p.ts||new Date().toISOString(),
+          status:p.status||'pending', applied: p.status==='approved' ? true : false
+        });
+        known.add(p.id); added++;
+      }
+    });
+  });
+  if(added){ saveAdmin(admin); }
+}
+
+/* Helpers */
+function fmt(n,d=2){ return Number(n||0).toLocaleString(undefined,{minimumFractionDigits:d, maximumFractionDigits:d}); }
+function short(a){ return a ? a.slice(0,6)+'…'+a.slice(-4) : ''; }
+
+/* Render table */
+function render(){
+  migrateLegacy();
+  const admin = loadAdmin();
+  const tb = document.querySelector('#tbl tbody');
+  tb.innerHTML = '';
+  const filter = document.getElementById('filter').value;
+  const list = admin.requests.slice().sort((a,b)=> new Date(b.ts)-new Date(a.ts))
+    .filter(r=> filter==='all' ? true : r.status===filter);
+
+  for(const r of list){
+    const tr = document.createElement('tr');
+    tr.innerHTML = \`
+      <td class="muted">\${r.id}</td>
+      <td>💸 \${r.type}</td>
+      <td title="\${r.address}">\${short(r.address)}</td>
+      <td>\${fmt(r.amount)} USDT</td>
+      <td class="muted">\${r.dest?short(r.dest):'-'}</td>
+      <td><span class="pill \${r.status}">\${r.status}</span></td>
+      <td class="muted">\${new Date(r.ts).toLocaleString()}</td>
+      <td class="row">
+        <button class="btn" data-act="pending" data-id="\${r.id}">Pending</button>
+        <button class="btn" data-act="hold" data-id="\${r.id}">Hold</button>
+        <button class="btn" data-act="approve" data-id="\${r.id}">Approve</button>
+        <button class="btn danger" data-act="reject" data-id="\${r.id}">Reject</button>
+      </td>\`;
+    tb.appendChild(tr);
+  }
+}
+
+function setStatus(id, next){
+  const admin = loadAdmin();
+  const state = loadUserState();
+  const r = admin.requests.find(x=>x.id===id);
+  if(!r) return;
+  const acc = state.accounts[r.address] || null;
+
+  // If toggling around approved, adjust user balance exactly once.
+  const wasApproved = r.status === 'approved';
+  r.status = next;
+
+  if(next==='approved' && !r.applied){
+    // deduct once
+    if(acc){
+      const amt = Number(r.amount)||0;
+      if(amt > 0 && Number(acc.usdt) >= amt - 1e-12){
+        acc.usdt = Number(acc.usdt) - amt;
+      }
+      // remove from any legacy pending array if present
+      if(Array.isArray(acc.pending)){
+        const i = acc.pending.findIndex(p=>p.id===id);
+        if(i>-1) acc.pending[i].status='approved';
+      }
+    }
+    r.applied = true;
+  } else if(wasApproved && next!=='approved' && r.applied){
+    // refund if we move away from approved
+    if(acc){
+      const amt = Number(r.amount)||0;
+      acc.usdt = Number(acc.usdt) + amt;
+      if(Array.isArray(acc.pending)){
+        const i = acc.pending.findIndex(p=>p.id===id);
+        if(i>-1) acc.pending[i].status=next;
+      }
+    }
+    r.applied = false;
+  }
+
+  saveAdmin(admin);
+  saveUserState(state);
+  render();
+}
+
+/* Broadcast controls */
+function loadBroadcastUI(){
+  const admin = loadAdmin();
+  const b = admin.broadcast || null;
+  document.getElementById('alert').value = b?.message || '';
+  document.getElementById('mult').value  = b?.multiplier ?? 1;
+  document.getElementById('last').textContent = b ? ('Last updated: '+ new Date(b.updatedAt).toLocaleString()) : 'No broadcast set.';
+}
+
+document.getElementById('publish').addEventListener('click', ()=>{
+  const admin = loadAdmin();
+  const message = String(document.getElementById('alert').value||'').trim();
+  const multiplier = Math.max(0, Number(document.getElementById('mult').value||1) || 1);
+  admin.broadcast = { message, multiplier, updatedAt: new Date().toISOString() };
+  saveAdmin(admin);
+  loadBroadcastUI();
+});
+
+document.getElementById('clear').addEventListener('click', ()=>{
+  const admin = loadAdmin();
+  admin.broadcast = null;
+  saveAdmin(admin);
+  loadBroadcastUI();
+});
+
+document.getElementById('refresh').addEventListener('click', render);
+document.getElementById('filter').addEventListener('change', render);
+document.querySelector('#tbl').addEventListener('click', (e)=>{
+  const btn = e.target.closest('button[data-id]');
+  if(!btn) return;
+  const id = btn.dataset.id;
+  const act = btn.dataset.act;
+  if(act==='approve') setStatus(id,'approved');
+  else if(act==='reject') setStatus(id,'rejected');
+  else if(act==='hold') setStatus(id,'hold');
+  else if(act==='pending') setStatus(id,'pending');
+});
+
+window.addEventListener('storage', (e)=>{
+  if(e.key===ADMIN_KEY || e.key===STORAGE_KEY){
+    render(); loadBroadcastUI();
+  }
+});
+
+render(); loadBroadcastUI();
+</script>
+</body>
+</html>
