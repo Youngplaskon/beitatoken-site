@@ -149,49 +149,9 @@
       .coin-logo img { width:64vw; }
       .links { display:none; }
     }
-  
-    /* --- Responsive nav always visible --- */
-    .links { display:flex; align-items:center; flex-wrap:wrap; gap:10px; }
-    .links a { white-space:nowrap; }
-    @media(max-width:960px){
-      .nav { flex-wrap:wrap; }
-      .brand { flex:1 1 auto; min-width: 180px; }
-      .links { 
-        display:flex; 
-        flex: 1 1 100%;
-        overflow-x:auto; 
-        gap:10px; 
-        padding:8px 0 2px;
-        scrollbar-width: thin;
-      }
-      .brand .logo img { width:32px; height:32px; } /* Adjust logo to fit small screens */
-    }
-    /* --- Falling coins background --- */
-    .falling-layer{
-      position:fixed; inset:0; pointer-events:none; z-index:0;
-      overflow:hidden;
-    }
-    .fall-coin{
-      position:absolute; top:-120px; width:48px; height:48px; opacity:.75;
-      animation: fall linear var(--dur) var(--delay) infinite, spinY linear calc(var(--dur) * 1.2) var(--delay) infinite;
-      filter: drop-shadow(0 6px 10px rgba(0,0,0,.35));
-    }
-    @keyframes fall{
-      0%{ transform: translate3d(var(--x,0px), -120px, 0) rotate(var(--rot,0deg)); opacity: .0; }
-      10%{ opacity:.9;}
-      100%{ transform: translate3d(var(--x,0px), 120vh, 0) rotate(calc(var(--rot,0deg) + 180deg)); opacity:.9; }
-    }
-    @keyframes spinY{
-      from{ transform: rotateY(0deg); }
-      to{   transform: rotateY(360deg); }
-    }
-    /* Ensure content sits above falling background */
-    header, main, footer { position: relative; z-index: 1; }
-
   </style>
 </head>
 <body>
-  <div class="falling-layer" aria-hidden="true" id="falling"></div>
   <!-- Preloader -->
   <div id="preloader">
     <img src="logo.png" alt="Loading BeitaToken">
@@ -351,36 +311,6 @@
 
     // Footer year
     document.getElementById('year').textContent=new Date().getFullYear();
-  
-    // Falling coins
-    (function(){
-      const layer = document.getElementById('falling');
-      if(!layer) return;
-      const sources = ['logo.png','img1.png'];
-      const COUNT = 14;
-      function spawn(i){
-        const img = document.createElement('img');
-        img.src = sources[i % sources.length];
-        img.alt = '';
-        img.className = 'fall-coin';
-        const left = Math.random()*100; // vw
-        const size = 28 + Math.random()*44; // px
-        const dur  = 7 + Math.random()*8;   // s
-        const delay = Math.random()*-dur;   // negative so some are mid-air on load
-        const xDrift = (Math.random()*40 - 20) + 'px';
-        const rot = (Math.random()*180 - 90) + 'deg';
-        img.style.left = left + 'vw';
-        img.style.width = size + 'px';
-        img.style.height = size + 'px';
-        img.style.setProperty('--dur', dur + 's');
-        img.style.setProperty('--delay', delay + 's');
-        img.style.setProperty('--x', xDrift);
-        img.style.setProperty('--rot', rot);
-        layer.appendChild(img);
-      }
-      for(let i=0;i<COUNT;i++) spawn(i);
-    })();
-
   </script>
 </body>
 </html>
